@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings Page</title>
+  <link rel="stylesheet" href="../src/static/css/settings.css">
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Settings</h2>
+    <ul class="menu">
+      <li class="menu-item active" onclick="showSection('account')">Account</li>
+      <li class="menu-item" onclick="showSection('privacy')">Privacy</li>
+      <li class="menu-item" onclick="showSection('notifications')">Notifications</li>
+      <li class="menu-item" onclick="showSection('general')">General</li>
+    </ul>
+  </div>
+
+  <div class="main-content">
+    <!-- Account Section -->
+    <div id="account" class="section active">
+      <h3>Account Settings</h3>
+      <p id="accountInfo">Loading account info...</p>
+    </div>
+
+    <!-- Privacy Section -->
+    <div id="privacy" class="section">
+      <h3>Privacy Settings</h3>
+      <p>Manage your privacy preferences here.</p>
+      <button class="btn" onclick="disappear()" aria-label="Disappear">Disappear</button>
+      <p>Allow other users to decrypt your messages once stored</p>
+      <div id="toggle-button" class="toggle-button active">
+        <span id="toggle-label">ON</span>
+      </div>
+      <div class="number-selection">
+        <label for="numberInput">Message deletion timer (minutes):</label>
+        <input type="number" id="numberInput" min="0" max="100" placeholder="Enter a number">
+        <button class="btn" id="delTimerButton">Submit</button>
+      </div>
+    </div>
+
+    <!-- Notifications Section -->
+    <div id="notifications" class="section">
+      <h3>Notification Settings</h3>
+      <p>Control your notification preferences here.</p>
+    </div>
+
+    <!-- General Section -->
+    <div id="general" class="section">
+      <h3>Customization</h3>
+      <p>Chat background</p>
+      <input type="text" id="chatBackground" placeholder="Enter a URL or a color (e.g., #ff0000 or https://example.com/image.jpg)">
+      <input type="file" id="chatBackgroundFile" accept="image/*">
+      <button class="btn" onclick="saveBackground()">Save Background</button>
+
+      <div class="image-container">
+        <div class="image-item" onclick="handleImageClick('http://sfwallpaper.com/images/galaxy-cat-wallpaper-6.jpg')">
+          <img src="http://sfwallpaper.com/images/galaxy-cat-wallpaper-6.jpg" alt="Image 1">
+          <div class="image-label">Image 1</div>
+        </div>
+        <div class="image-item" onclick="handleImageClick('https://wallpaper-mania.com/wp-content/uploads/2018/09/High_resolution_wallpaper_background_ID_77700024003.jpg')">
+          <img src="https://wallpaper-mania.com/wp-content/uploads/2018/09/High_resolution_wallpaper_background_ID_77700024003.jpg" alt="Image 2">
+          <div class="image-label">Image 2</div>
+        </div>
+        <div class="image-item" onclick="handleImageClick('https://e1.pxfuel.com/desktop-wallpaper/461/478/desktop-wallpaper-whatsapp-dark-whatsapp-chat.jpg')">
+          <img src="https://e1.pxfuel.com/desktop-wallpaper/461/478/desktop-wallpaper-whatsapp-dark-whatsapp-chat.jpg" alt="Image 3">
+          <div class="image-label">Image 3</div>
+        </div>
+        <div class="image-item" onclick="handleImageClick('https://i.pinimg.com/736x/0b/c3/4c/0bc34c083d2926e07cfcabc016ea49f0.jpg')">
+          <img src="https://i.pinimg.com/736x/0b/c3/4c/0bc34c083d2926e07cfcabc016ea49f0.jpg" alt="Image 4">
+          <div class="image-label">Image 4</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Back Button -->
+    <div class="back-button-container">
+      <button class="btn" onclick="goBackToChat()">Back to Chat</button>
+    </div>
+  </div>
+
+  <script>
+    function goBackToChat() {
+      window.location.href = './chat.html';
+    }
+
+    let currentBackground = null;
+
+    function saveBackground() {
+      const input = document.getElementById('chatBackground').value;
+      localStorage.setItem('chatBackground', input);
+      document.getElementById('chatBackground').value = '';
+      alert("Background saved!");
+    }
+
+    function handleImageClick(image) {
+      localStorage.setItem('chatBackground', image);
+      alert("Background set");
+    }
+
+    async function generateAesGcmKey() {
+      try {
+        const key = await crypto.subtle.generateKey(
+          { name: "AES-GCM", length: 256 },
+          true,
+          ["encrypt", "decrypt"]
+        );
+        console.log("AES-GCM Key successfully generated!");
+        const rawKey = await crypto.subtle.exportKey("raw", key);
+        return btoa(String.fromCharCode(...new Uint8Array(rawKey)));
+      } catch (error) {
+        console.error("Error generating AES-GCM key:", error);
+      }
+    }
+
+    async function generateDecryptionKey(destUserId) {
+      const base64Key = await generateAesGcmKey();
+      fetch('/api/set_decryption_key', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key: base64Key, user_id: destUserId })
+      }).then(response => response.json())
+        .then(result => console.log("Response from server:", result))
+        .catch(error => console.error("Error:", error));
+    }
+
+    function getDecryptionKey(destUserId) {
+      const url = `/api/get_decryption_key?user_id=${encodeURIComponent(destUserId)}`;
+      fetch(url, { method: "GET", headers: { "Content-Type": "application/json" }, credentials: "include" })
+        .then(response => response.json())
+        .then(result => console.log("Response from server:", result))
+        .catch(error => console.error("Error:", error));
+    }
+
+    const toggleButton = document.getElementById("toggle-button");
+    const toggleLabel = document.getElementById("toggle-label");
+    toggleButton.addEventListener("click", () => {
+      toggleButton.classList.toggle("active");
+      toggleLabel.textContent = toggleButton.classList.contains("active") ? "ON" : "OFF";
+    });
+
+    function sendKeys() {
+      const keys = JSON.parse(localStorage.getItem('keys')) || {};
+      for (const key in keys) {
+        const base64Key = keys[key];
+        const destUserId = key;
+        const data = { key: base64Key, user_id: destUserId };
+        fetch('/api/set_decryption_key', {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(data)
+        }).then(response => response.json())
+          .then(result => console.log("Response from server:", result))
+          .catch(error => console.error("Error sending key to server:", error));
+      }
+    }
+  </script>
+
+  <script src="../src/static/js/settings.js"></script>
+</body>
+</html>
